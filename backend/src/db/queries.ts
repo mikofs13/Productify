@@ -28,13 +28,15 @@ export const updateUser = async (id:string, data: Partial<NewUser>) => {
     return user;
 }
 
-export const upsertUser = async(data:NewUser) => {
-    const existingUser = await getUserById(data.id);
+export const updateUser = async (id: string, data: Partial<NewUser>) => {
+  const existingUser = await getUserById(id);
+  if (!existingUser) {
+    throw new Error(`User with id ${id} not found`);
+  }
 
-    if (existingUser) return updateUser(data.id, data)
-
-    return createUser(data)
-}
+  const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+  return user;
+};
 
 
 //product
