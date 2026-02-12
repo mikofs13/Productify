@@ -23,10 +23,7 @@ export const getUserById = async(id:string) =>{
     return db.query.users.findFirst({where: eq(users.id, id)})
 }
 
-export const updateUser = async (id:string, data: Partial<NewUser>) => {
-    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
-    return user;
-}
+
 
 export const updateUser = async (id: string, data: Partial<NewUser>) => {
   const existingUser = await getUserById(id);
