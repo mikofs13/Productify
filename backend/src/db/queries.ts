@@ -1,5 +1,5 @@
 import { db } from "./index";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   users,
   comments,
@@ -8,22 +8,16 @@ import {
   type NewComment,
   type NewProduct,
 } from "./schema";
-import { date } from "drizzle-orm/mysql-core";
 
-
-//User part
-
-export const createUser = async (data: NewUser) =>{
-   const [user] = await db.insert(users).values(data).returning();
-   return user
+// USER QUERIES
+export const createUser = async (data: NewUser) => {
+  const [user] = await db.insert(users).values(data).returning();
+  return user;
 };
 
-
-export const getUserById = async(id:string) =>{
-    return db.query.users.findFirst({where: eq(users.id, id)})
-}
-
-
+export const getUserById = async (id: string) => {
+  return db.query.users.findFirst({ where: eq(users.id, id) });
+};
 
 export const updateUser = async (id: string, data: Partial<NewUser>) => {
   const existingUser = await getUserById(id);
@@ -35,72 +29,101 @@ export const updateUser = async (id: string, data: Partial<NewUser>) => {
   return user;
 };
 
+// upsert => create or update
 
-//product
+export const upsertUser = async (data: NewUser) => {
+  // this is what we have done first
+  // const existingUser = await getUserById(data.id);
+  // if (existingUser) return updateUser(data.id, data);
 
-export const createProduct = async (data: NewProduct) =>{
-   const [product] = await db.insert(products).values(data).returning();
-   return product
+  // return createUser(data);
+
+  // and this is what CR suggested
+  const [user] = await db
+    .insert(users)
+    .values(data)
+    .onConflictDoUpdate({
+      target: users.id,
+      set: data,
+    })
+    .returning();
+  return user;
+};
+
+// PRODUCT QUERIES
+export const createProduct = async (data: NewProduct) => {
+  const [product] = await db.insert(products).values(data).returning();
+  return product;
 };
 
 export const getAllProducts = async () => {
-    const products = await db.query.products.findMany({
-        with: {user: true},//the last parameter implies that we are fetching the products owner/ user with it with the relatoion naame of user
-        orderBy: (products, {desc}) => [desc(products.createdAt)]
-    }) 
-}
+  return db.query.products.findMany({
+    with: { user: true },
+    orderBy: (products, { desc }) => [desc(products.createdAt)], // desc means: you will see the latest products first
+    // the square brackets are required because Drizzle ORM's orderBy expects an array, even for a single column.
+  });
+};
 
-export const getProductById = async (id: string) =>{
-    return db.query.products.findFirst({
-        where: eq(products.id, id),
-        with: {
-            user: true,
-            comments: {
-                with: {user: true},
-                orderBy: (comments, {desc}) => [desc(comments.createdAt)]
-                
-            }
-        }
-    })
-    
-}
-
-export const getProductByUserId = async (id: string) =>{
-   return db.query.products.findMany({
-    where: eq(products.userId, id),
+export const getProductById = async (id: string) => {
+  return db.query.products.findFirst({
+    where: eq(products.id, id),
     with: {
-        user: true,
+      user: true,
+      comments: {
+        with: { user: true },
+        orderBy: (comments, { desc }) => [desc(comments.createdAt)],
+      },
     },
-    orderBy: (products, {desc})=> [desc(products.createdAt)],
+  });
+};
 
-   })
-}
+export const getProductsByUserId = async (userId: string) => {
+  return db.query.products.findMany({
+    where: eq(products.userId, userId),
+    with: { user: true },
+    orderBy: (products, { desc }) => [desc(products.createdAt)],
+  });
+};
 
-export const updateProduct = async (id:string, data: Partial<NewProduct>) => {
-    const [product] = await db.update(products).set(data).where(eq(products.id, id)).returning();
-    return product;
-}
+export const updateProduct = async (id: string, data: Partial<NewProduct>) => {
+  const existingProduct = await getProductById(id);
+  if (!existingProduct) {
+    throw new Error(`Product with id ${id} not found`);
+  }
 
-export const deleteProduct = async (id:string) => {
-    const [product] = await db.delete(products).where(eq(products.id, id)).returning();
-    return product;
-}
+  const [product] = await db.update(products).set(data).where(eq(products.id, id)).returning();
+  return product;
+};
 
-//Comment
+export const deleteProduct = async (id: string) => {
+  const existingProduct = await getProductById(id);
+  if (!existingProduct) {
+    throw new Error(`Product with id ${id} not found`);
+  }
 
-export const createComment = async (data: NewComment) =>{
-   const [comment] = await db.insert(comments).values(data).returning();
-   return comment
-}
+  const [product] = await db.delete(products).where(eq(products.id, id)).returning();
+  return product;
+};
 
-export const deleteComment = async (id:string) => {
-    const [comment] = await db.delete(comments).where(eq(comments.id, id)).returning();
-    return comment;
-}
+// COMMENT QUERIES
+export const createComment = async (data: NewComment) => {
+  const [comment] = await db.insert(comments).values(data).returning();
+  return comment;
+};
 
-export const getCommentById = async (id: string) =>{
-    return db.query.comments.findFirst({
-        where: eq(comments.id, id),
-        with: {user: true}
-    })
-}
+export const deleteComment = async (id: string) => {
+  const existingComment = await getCommentById(id);
+  if (!existingComment) {
+    throw new Error(`Comment with id ${id} not found`);
+  }
+
+  const [comment] = await db.delete(comments).where(eq(comments.id, id)).returning();
+  return comment;
+};
+
+export const getCommentById = async (id: string) => {
+  return db.query.comments.findFirst({
+    where: eq(comments.id, id),
+    with: { user: true },
+  });
+};
